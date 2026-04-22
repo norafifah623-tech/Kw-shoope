@@ -1,5 +1,29 @@
+Tech: React + Node.js + Express + MongoDB + JWT
+(server/server.js)
 const express = require("express"); const mongoose = require("mongoose"); const cors = require("cors"); const path = require("path"); const jwt = require("jsonwebtoken");
 
 const app = express(); app.use(cors()); app.use(express.json());
 
 mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ecommerce");
+const UserSchema = new mongoose.Schema({ email: String, password: String, });
+
+const ProductSchema = new mongoose.Schema({ name: String, price: Number, image: String, sizes: [String], stock: Number, });
+
+const OrderSchema = new mongoose.Schema({ userId: String, items: Array, total: Number, });
+
+const User = mongoose.model("User", UserSchema); const Product = mongoose.model("Product", ProductSchema); const Order = mongoose.model("Order", OrderSchema);
+app.post("/api/register", async (req, res) => { const user = new User(req.body); await user.save(); res.json(user); });
+
+app.post("/api/login", async (req, res) => { const user = await User.findOne(req.body); if (!user) return res.status(400).send("User not found");
+
+const token = jwt.sign({ id: user._id }, "secret123"); res.json({ token }); });
+
+// ========================= // PRODUCTS // =========================
+
+app.get("/api/products", async (req, res) => { res.json(await Product.find()); });
+
+app.post("/api/products", async (req, res) => { const product = new Product(req.body); await product.save(); res.json(product); });
+
+// ========================= // ORDERS (CHECKOUT) // =========================
+
+app.post("/api/checkout", async (req, res) => { const order = new Order(req.body); await order.save(); res.json(order); });
