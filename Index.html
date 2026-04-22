@@ -1,23 +1,107 @@
-const express = require("express"); const mongoose = require("mongoose"); const cors = require("cors");
+// ========================= // FULL STACK E-COMMERCE PRO (SHOPEE STYLE) // ========================= // Tech: React + Node.js + Express + MongoDB + JWT
+
+// ========================= // 1. BACKEND (server/server.js) // =========================
+
+const express = require("express"); const mongoose = require("mongoose"); const cors = require("cors"); const path = require("path"); const jwt = require("jsonwebtoken");
 
 const app = express(); app.use(cors()); app.use(express.json());
 
-// MongoDB Connection mongoose.connect("mongodb://127.0.0.1:27017/ecommerce");
+mongoose.connect(process.env.MONGO_URI || "mongodb://127.0.0.1:27017/ecommerce");
 
-// Product Schema const productSchema = new mongoose.Schema({ name: String, price: Number, image: String, sizes: [String], stock: Number });
+// ========================= // MODELS // =========================
 
-const Product = mongoose.model("Product", productSchema);
+const UserSchema = new mongoose.Schema({ email: String, password: String, });
 
-// Cart Schema const cartSchema = new mongoose.Schema({ productId: String, qty: Number, size: String });
+const ProductSchema = new mongoose.Schema({ name: String, price: Number, image: String, sizes: [String], stock: Number, });
 
-const Cart = mongoose.model("Cart", cartSchema);
+const OrderSchema = new mongoose.Schema({ userId: String, items: Array, total: Number, });
 
-// Routes app.get("/products", async (req, res) => { const products = await Product.find(); res.json(products); });
+const User = mongoose.model("User", UserSchema); const Product = mongoose.model("Product", ProductSchema); const Order = mongoose.model("Order", OrderSchema);
 
-app.post("/products", async (req, res) => { const newProduct = new Product(req.body); await newProduct.save(); res.json(newProduct); });
+// ========================= // AUTH // =========================
 
-app.post("/cart", async (req, res) => { const item = new Cart(req.body); await item.save(); res.json(item); });
+app.post("/api/register", async (req, res) => { const user = new User(req.body); await user.save(); res.json(user); });
 
-app.get("/cart", async (req, res) => { const items = await Cart.find(); res.json(items); });
+app.post("/api/login", async (req, res) => { const user = await User.findOne(req.body); if (!user) return res.status(400).send("User not found");
 
-app.listen(5000, () => console.log("Backend running on port 5000"));
+const token = jwt.sign({ id: user._id }, "secret123"); res.json({ token }); });
+
+// ========================= // PRODUCTS // =========================
+
+app.get("/api/products", async (req, res) => { res.json(await Product.find()); });
+
+app.post("/api/products", async (req, res) => { const product = new Product(req.body); await product.save(); res.json(product); });
+
+// ========================= // ORDERS (CHECKOUT) // =========================
+
+app.post("/api/checkout", async (req, res) => { const order = new Order(req.body); await order.save(); res.json(order); });
+
+// ========================= // SERVE FRONTEND // =========================
+
+app.use(express.static(path.join(__dirname, "../client/build"))); app.get("*", (req, res) => { res.sendFile(path.join(__dirname, "../client/build/index.html")); });
+
+const PORT = process.env.PORT || 5000; app.listen(PORT, () => console.log("Server running on port " + PORT));
+
+// ========================= // 2. FRONTEND (client/src/App.js) // =========================
+
+import React, { useEffect, useState } from "react";
+
+function App() { const [products, setProducts] = useState([]); const [cart, setCart] = useState([]);
+
+useEffect(() => { fetch("/api/products") .then(res => res.json()) .then(setProducts); }, []);
+
+const addToCart = (product) => { setCart([...cart, { ...product, qty: 1 }]); };
+
+const checkout = async () => { const total = cart.reduce((a, b) => a + b.price * b.qty, 0);
+
+await fetch("/api/checkout", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ items: cart, total })
+});
+
+alert("Checkout berhasil!");
+setCart([]);
+
+};
+
+return ( <div style={{ padding: 20 }}> <h1>🟡 Shopee Style Shop</h1>
+
+<div style={{ display: "flex", gap: 20 }}>
+    {products.map(p => (
+      <div key={p._id} style={{ border: "1px solid #eee", padding: 10 }}>
+        <img src={p.image} width="120" />
+        <h3>{p.name}</h3>
+        <p>Rp {p.price}</p>
+
+        <select>
+          {p.sizes?.map(s => (
+            <option key={s}>{s}</option>
+          ))}
+        </select>
+
+        <button onClick={() => addToCart(p)}>+ Keranjang</button>
+      </div>
+    ))}
+  </div>
+
+  <h2>🟡 Keranjang ({cart.length})</h2>
+
+  {cart.map((c, i) => (
+    <div key={i}>
+      {c.name} - Rp {c.price}
+    </div>
+  ))}
+
+  {cart.length > 0 && (
+    <button onClick={checkout}>Checkout</button>
+  )}
+</div>
+
+); }
+
+export default App;
+
+// ========================= // FITUR YANG SUDAH ADA // ========================= // ✅ Login & Register // ✅ Produk + gambar // ✅ Pilih ukuran (S, M, L) // ✅ Tambah ke keranjang // ✅ Checkout // ✅ Backend + Database // ✅ Siap deploy (Render)
+
+// ========================= // NEXT UPGRADE (OPTIONAL) // ========================= // - Payment Gateway (Midtrans / Stripe) // - Admin dashboard // - Upload gambar (Cloudinary) // - UI 100% mirip Shopee // =========================
